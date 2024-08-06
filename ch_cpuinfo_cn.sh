@@ -149,12 +149,18 @@ GATHER_FN () {
         else
             pro_chk="-v PRO"
         fi
-        cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g"`
-        if  [ -z "$cpu_series" ]
-        then
-            cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g"`
+        # 提取 CPU 系列信息
+        cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; 
+        i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+        echo "Initial CPU Series: $cpu_series"
+        # 如果 cpu_series 为空，则使用另一种方法提取
+        if [ -z "$cpu_series" ]; then
+        cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = 
+        NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+        echo "Fallback CPU Series: $cpu_series"
         fi
-        cpu_family=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -F"$cpu_series" '{print $1}' | sed "s/ *$//g"`
+        # 提取 CPU 家族信息
+        cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
     elif [ "$cpu_vendor" == "Intel" ]
     then
         cpu_family=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk '{ for(i = 1; i < NF; i++) if ($i ~ /^Intel/) { for(j=i;j<=NF;j++)printf("%s ", $j);printf("\n") }}' | awk -F@ '{ print $1 }' | sed "s/(.)//g" | sed "s/(..)//g" | sed "s/ CPU//g" | awk '{print $2}' | head -1 | sed "s/ *$//g"`
