@@ -1,0 +1,1 @@
+# 5825u_synology_cpuinfo
