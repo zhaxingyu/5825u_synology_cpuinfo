@@ -149,13 +149,24 @@ GATHER_FN () {
         else
             pro_chk="-v PRO"
         fi
-        cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g"`
-        if  [ -z "$cpu_series" ]
-        then
-            cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g"`
-        fi
-        cpu_family=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -F"$cpu_series" '{print $1}' | sed "s/ *$//g"`
-    elif [ "$cpu_vendor" == "Intel" ]
+        		# 提取 CPU 信息
+cpu_info=$(cat /proc/cpuinfo | grep "model name" | sort -u)
+echo "Full CPU Info: $cpu_info"
+
+# 提取 CPU 系列信息
+cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+echo "Initial CPU Series: $cpu_series"
+
+# 如果 cpu_series 为空，则使用另一种方法提取
+if [ -z "$cpu_series" ]; then
+    cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+    echo "Fallback CPU Series: $cpu_series"
+fi
+
+# 提取 CPU 家族信息
+cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
+echo "CPU Family: $cpu_family"
+	elif [ "$cpu_vendor" == "Intel" ]
     then
         cpu_family=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk '{ for(i = 1; i < NF; i++) if ($i ~ /^Intel/) { for(j=i;j<=NF;j++)printf("%s ", $j);printf("\n") }}' | awk -F@ '{ print $1 }' | sed "s/(.)//g" | sed "s/(..)//g" | sed "s/ CPU//g" | awk '{print $2}' | head -1 | sed "s/ *$//g"`
         cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk '{ for(i = 1; i < NF; i++) if ($i ~ /^Intel/) { for(j=i;j<=NF;j++)printf("%s ", $j);printf("\n") }}' | awk -F@ '{ print $1 }' | sed "s/(.)//g" | sed "s/(..)//g" | sed "s/ CPU//g" | awk -F"$cpu_family " '{print $2}' | head -1 | sed "s/ *$//g"`
@@ -211,6 +222,23 @@ GATHER_FN () {
         fi
     elif [ "$cpu_vendor" == "AMD" ]
     then
+    		# 提取 CPU 信息
+cpu_info=$(cat /proc/cpuinfo | grep "model name" | sort -u)
+echo "Full CPU Info: $cpu_info"
+
+# 提取 CPU 系列信息
+cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+echo "Initial CPU Series: $cpu_series"
+
+# 如果 cpu_series 为空，则使用另一种方法提取
+if [ -z "$cpu_series" ]; then
+    cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+    echo "Fallback CPU Series: $cpu_series"
+fi
+
+# 提取 CPU 家族信息
+cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
+echo "CPU Family: $cpu_family"
         cpu_search=`echo "$cpu_series" | awk '{print $1" "$2}'`
         gen_url=`curl --silent -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36" http://stackoverflow.com/questions/28760694/how-to-use-curl-to-get-a-get-request-exactly-same-as-using-chrome \
                     https://www.amd.com/en/products/specifications/processors | grep -wi "$cpu_search" | grep $pro_chk | awk -F"views-field" '{print $1}' | awk -F"entity-" '{print $2}'`
@@ -225,12 +253,30 @@ GATHER_FN () {
             cpu_series=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g"`
             cpu_family=`cat /proc/cpuinfo | grep model | grep name | sort -u | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -F"$cpu_series" '{print $1}' | sed "s/ *$//g"`    
             chg_series=`echo $cpu_series | awk '{print $1}'`
+            		# 提取 CPU 信息
+cpu_info=$(cat /proc/cpuinfo | grep "model name" | sort -u)
+echo "Full CPU Info: $cpu_info"
+
+# 提取 CPU 系列信息
+cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+echo "Initial CPU Series: $cpu_series"
+
+# 如果 cpu_series 为空，则使用另一种方法提取
+if [ -z "$cpu_series" ]; then
+    cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+    echo "Fallback CPU Series: $cpu_series"
+fi
+
+# 提取 CPU 家族信息
+cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
+echo "CPU Family: $cpu_family"
             gen_url=`curl --silent -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36" http://stackoverflow.com/questions/28760694/how-to-use-curl-to-get-a-get-request-exactly-same-as-using-chrome \
                     https://www.amd.com/en/products/specifications/processors | grep -wi "$chg_series" | grep $pro_chk | awk -F"views-field" '{print $1}' | awk -F"entity-" '{print $2}'`        
         fi
         cpu_gen=`curl --silent -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36" http://stackoverflow.com/questions/28760694/how-to-use-curl-to-get-a-get-request-exactly-same-as-using-chrome \
                 https://www.amd.com/en/product/$gen_url | egrep -A 2 -w ">Former Codename<|>Architecture<" | grep "field__item" | sed "s/&quot;/\"/g" | awk -F\"\>\" '{print $2}' | awk -F\" '{print $1}' | tr "\n" "| " | awk -F\| '{if($2=="") {print $1} else {print $1" | " $2}}'`
-        cpu_detail="($cpu_gen) <a href='https:\/\/www.amd.com\/en\/product\/$gen_url' target=_blank>详情<\/a>"                
+        cpu_detail="(Zen 3) <a href='https:\/\/www.amd.com\/zh-cn\/support\/downloads\/drivers.html\/processors\/ryzen\/ryzen-5000-series\/amd-ryzen-7-5825u.html' target=_blank>详情<\/a>"
+               
     else
         cpu_detail=""
     fi    
@@ -378,6 +424,23 @@ RECOVER_FN () {
 }
 
 RERUN_FN () {
+    		# 提取 CPU 信息
+cpu_info=$(cat /proc/cpuinfo | grep "model name" | sort -u)
+echo "Full CPU Info: $cpu_info"
+
+# 提取 CPU 系列信息
+cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+echo "Initial CPU Series: $cpu_series"
+
+# 如果 cpu_series 为空，则使用另一种方法提取
+if [ -z "$cpu_series" ]; then
+    cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+    echo "Fallback CPU Series: $cpu_series"
+fi
+
+# 提取 CPU 家族信息
+cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
+echo "CPU Family: $cpu_family"
     if [ "$1" == "redo" ]
     then
         ls -l $BKUP_DIR/ | grep ^d | grep -v "$BL_CHK" | awk '{print "rm -rf '$BKUP_DIR'/"$9}' | sh
@@ -890,6 +953,28 @@ cpu_cores=`echo ${cpu_cores}"-"${cpu_gen} | sed 's/\\\//g'`
 
 if [ "$LC_CHK" == "CUSTOMLANG" ]
 then
+echo "Full CPU Info: $cpu_info"
+echo "Initial CPU Series: $cpu_series"
+echo "CPU Family: $cpu_family"
+echo "CPU vendor: $cpu_vendor"
+# 提取 CPU 信息
+cpu_info=$(cat /proc/cpuinfo | grep "model name" | sort -u)
+echo "Full CPU Info: $cpu_info"
+
+# 提取 CPU 系列信息
+cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i > 1; i--) if ($i ~ /^[0-9]/) { for(j=i;j<=NF;j++)printf("%s ", $j);print("\n");break; }}' | sed "s/ *$//g")
+echo "Initial CPU Series: $cpu_series"
+
+# 如果 cpu_series 为空，则使用另一种方法提取
+if [ -z "$cpu_series" ]; then
+    cpu_series=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk '{ for(i = NF; i >= 1; i--) if ($i ~ ".*-.*") { print $i }}' | sed "s/ *$//g")
+    echo "Fallback CPU Series: $cpu_series"
+fi
+
+# 提取 CPU 家族信息
+cpu_family=$(echo "$cpu_info" | awk -F: '{print $2}' | sed "s/^\s*AMD//g" | sed "s/^\s//g" | head -1 | awk -v series="$cpu_series" '{split($0, a, series); print a[1]}' | sed "s/ *$//g")
+echo "CPU Family: $cpu_family"
+
     cecho g "$MSGECHO26\033[00m\n"
     cecho g "\033[0;36m${cpu_vendor} ${cpu_family} ${cpu_series} \033[0;31m[\033[0;36m${cpu_cores}\033[0;31m] \033[0;32m$MSGECHO18...\033[00m\n"
 elif [ "$LC_CHK" == "Seoul" ]
